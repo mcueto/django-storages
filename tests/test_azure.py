@@ -1,21 +1,13 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import unicode_literals
-
 import datetime
 from datetime import timedelta
+from unittest import mock
 
 import pytz
 from azure.storage.blob import Blob, BlobPermissions, BlobProperties
 from django.core.files.base import ContentFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from storages.backends import azure_storage
-
-try:
-    from unittest import mock
-except ImportError:  # Python 3.2 and below
-    import mock
 
 
 class AzureStorageTest(TestCase):
@@ -23,6 +15,7 @@ class AzureStorageTest(TestCase):
     def setUp(self, *args):
         self.storage = azure_storage.AzureStorage()
         self.storage._service = mock.MagicMock()
+        self.storage._custom_service = mock.MagicMock()
         self.storage.overwrite_files = True
         self.container_name = 'test'
         self.storage.azure_container = self.container_name
@@ -44,13 +37,13 @@ class AzureStorageTest(TestCase):
             self.storage._get_valid_path("path\\to\\somewhere"),
             "path/to/somewhere")
         self.assertEqual(
-            self.storage._get_valid_path("some/$/path"), "some/path")
+            self.storage._get_valid_path("some/$/path"), "some/$/path")
         self.assertEqual(
-            self.storage._get_valid_path("/$/path"), "path")
+            self.storage._get_valid_path("/$/path"), "$/path")
         self.assertEqual(
-            self.storage._get_valid_path("path/$/"), "path")
+            self.storage._get_valid_path("path/$/"), "path/$")
         self.assertEqual(
-            self.storage._get_valid_path("path/$/$/$/path"), "path/path")
+            self.storage._get_valid_path("path/$/$/$/path"), "path/$/$/$/path")
         self.assertEqual(
             self.storage._get_valid_path("some///path"), "some/path")
         self.assertEqual(
@@ -66,24 +59,23 @@ class AzureStorageTest(TestCase):
         self.assertRaises(ValueError, self.storage._get_valid_path, "/../")
         self.assertRaises(ValueError, self.storage._get_valid_path, "..")
         self.assertRaises(ValueError, self.storage._get_valid_path, "///")
-        self.assertRaises(ValueError, self.storage._get_valid_path, "!!!")
         self.assertRaises(ValueError, self.storage._get_valid_path, "a" * 1025)
         self.assertRaises(ValueError, self.storage._get_valid_path, "a/a" * 257)
 
     def test_get_valid_path_idempotency(self):
         self.assertEqual(
-            self.storage._get_valid_path("//$//a//$//"), "a")
+            self.storage._get_valid_path("//$//a//$//"), "$/a/$")
         self.assertEqual(
             self.storage._get_valid_path(
                 self.storage._get_valid_path("//$//a//$//")),
             self.storage._get_valid_path("//$//a//$//"))
+        some_path = "some path/some long name & then some.txt"
         self.assertEqual(
-            self.storage._get_valid_path("some path/some long name & then some.txt"),
-            "some_path/some_long_name__then_some.txt")
+            self.storage._get_valid_path(some_path), some_path)
         self.assertEqual(
             self.storage._get_valid_path(
-                self.storage._get_valid_path("some path/some long name & then some.txt")),
-            self.storage._get_valid_path("some path/some long name & then some.txt"))
+                self.storage._get_valid_path(some_path)),
+            self.storage._get_valid_path(some_path))
 
     def test_get_available_name(self):
         self.storage.overwrite_files = False
@@ -99,7 +91,7 @@ class AzureStorageTest(TestCase):
         self.storage._service.exists.return_value = False
         self.assertEqual(
             self.storage.get_available_name('foo bar baz.txt'),
-            'foo_bar_baz.txt')
+            'foo bar baz.txt')
         self.assertEqual(self.storage._service.exists.call_count, 1)
 
     def test_get_available_name_max_len(self):
@@ -118,34 +110,171 @@ class AzureStorageTest(TestCase):
         self.storage.overwrite_files = False
         self.storage._service.exists.return_value = False
         self.assertRaises(ValueError, self.storage.get_available_name, "")
-        self.assertRaises(ValueError, self.storage.get_available_name, "$$")
+        self.assertRaises(ValueError, self.storage.get_available_name, "/")
+        self.assertRaises(ValueError, self.storage.get_available_name, ".")
+        self.assertRaises(ValueError, self.storage.get_available_name, "///")
+        self.assertRaises(ValueError, self.storage.get_available_name, "...")
 
     def test_url(self):
-        self.storage._service.make_blob_url.return_value = 'ret_foo'
+        self.storage._custom_service.make_blob_url.return_value = 'ret_foo'
         self.assertEqual(self.storage.url('some blob'), 'ret_foo')
-        self.storage._service.make_blob_url.assert_called_once_with(
+        self.storage._custom_service.make_blob_url.assert_called_once_with(
             container_name=self.container_name,
-            blob_name='some_blob',
+            blob_name='some%20blob',
+            protocol='https')
+
+    def test_url_unsafe_chars(self):
+        self.storage.custom_service.make_blob_url.return_value = 'ret_foo'
+        self.assertEqual(self.storage.url('foo;?:@=&"<>#%{}|^~[]`bar/~!*()\''), 'ret_foo')
+        self.storage.custom_service.make_blob_url.assert_called_once_with(
+            container_name=self.container_name,
+            blob_name='foo%3B%3F%3A%40%3D%26%22%3C%3E%23%25%7B%7D%7C%5E~%5B%5D%60bar/~!*()\'',
             protocol='https')
 
     def test_url_expire(self):
         utc = pytz.timezone('UTC')
         fixed_time = utc.localize(datetime.datetime(2016, 11, 6, 4))
-        self.storage._service.generate_blob_shared_access_signature.return_value = 'foo_token'
-        self.storage._service.make_blob_url.return_value = 'ret_foo'
+        self.storage._custom_service.generate_blob_shared_access_signature.return_value = 'foo_token'
+        self.storage._custom_service.make_blob_url.return_value = 'ret_foo'
         with mock.patch('storages.backends.azure_storage.datetime') as d_mocked:
             d_mocked.utcnow.return_value = fixed_time
             self.assertEqual(self.storage.url('some blob', 100), 'ret_foo')
-            self.storage._service.generate_blob_shared_access_signature.assert_called_once_with(
+            self.storage._custom_service.generate_blob_shared_access_signature.assert_called_once_with(
                 self.container_name,
-                'some_blob',
-                BlobPermissions.READ,
+                'some blob',
+                permission=BlobPermissions.READ,
                 expiry=fixed_time + timedelta(seconds=100))
-            self.storage._service.make_blob_url.assert_called_once_with(
+            self.storage._custom_service.make_blob_url.assert_called_once_with(
                 container_name=self.container_name,
-                blob_name='some_blob',
+                blob_name='some%20blob',
                 sas_token='foo_token',
                 protocol='https')
+
+    def test_blob_service_default_params(self):
+        storage = azure_storage.AzureStorage()
+        with mock.patch(
+                'storages.backends.azure_storage.BlockBlobService',
+                autospec=True) as c_mocked:
+            self.assertIsNotNone(storage.service)
+            c_mocked.assert_called_once_with(
+                account_name=None,
+                account_key=None,
+                sas_token=None,
+                is_emulated=False,
+                protocol='https',
+                custom_domain=None,
+                connection_string=None,
+                token_credential=None,
+                endpoint_suffix=None)
+
+    def test_blob_service_params_no_emulator(self):
+        """Should ignore custom domain when emulator is not used"""
+        storage = azure_storage.AzureStorage()
+        storage.is_emulated = False
+        storage.custom_domain = 'foo_domain'
+        with mock.patch(
+                'storages.backends.azure_storage.BlockBlobService',
+                autospec=True) as c_mocked:
+            self.assertIsNotNone(storage.service)
+            c_mocked.assert_called_once_with(
+                account_name=None,
+                account_key=None,
+                sas_token=None,
+                is_emulated=False,
+                protocol='https',
+                custom_domain=None,
+                connection_string=None,
+                token_credential=None,
+                endpoint_suffix=None)
+
+    def test_blob_service_params(self):
+        storage = azure_storage.AzureStorage()
+        storage.is_emulated = True
+        storage.endpoint_suffix = 'foo_suffix'
+        storage.account_name = 'foo_name'
+        storage.account_key = 'foo_key'
+        storage.sas_token = 'foo_token'
+        storage.azure_ssl = True
+        storage.custom_domain = 'foo_domain'
+        storage.connection_string = 'foo_conn'
+        storage.token_credential = 'foo_cred'
+        with mock.patch(
+                'storages.backends.azure_storage.BlockBlobService',
+                autospec=True) as c_mocked:
+            self.assertIsNotNone(storage.service)
+            c_mocked.assert_called_once_with(
+                account_name='foo_name',
+                account_key='foo_key',
+                sas_token='foo_token',
+                is_emulated=True,
+                protocol='https',
+                custom_domain='foo_domain',
+                connection_string='foo_conn',
+                token_credential='foo_cred',
+                endpoint_suffix='foo_suffix')
+
+    def test_blob_custom_service_default_params(self):
+        storage = azure_storage.AzureStorage()
+        with mock.patch(
+                'storages.backends.azure_storage.BlockBlobService',
+                autospec=True) as c_mocked:
+            self.assertIsNotNone(storage.custom_service)
+            c_mocked.assert_called_once_with(
+                account_name=None,
+                account_key=None,
+                sas_token=None,
+                is_emulated=False,
+                protocol='https',
+                custom_domain=None,
+                connection_string=None,
+                token_credential=None,
+                endpoint_suffix=None)
+
+    def test_blob_custom_service_params_no_emulator(self):
+        """Should pass custom domain when emulator is not used"""
+        storage = azure_storage.AzureStorage()
+        storage.is_emulated = False
+        storage.custom_domain = 'foo_domain'
+        with mock.patch(
+                'storages.backends.azure_storage.BlockBlobService',
+                autospec=True) as c_mocked:
+            self.assertIsNotNone(storage.custom_service)
+            c_mocked.assert_called_once_with(
+                account_name=None,
+                account_key=None,
+                sas_token=None,
+                is_emulated=False,
+                protocol='https',
+                custom_domain='foo_domain',
+                connection_string=None,
+                token_credential=None,
+                endpoint_suffix=None)
+
+    def test_blob_custom_service_params(self):
+        storage = azure_storage.AzureStorage()
+        storage.is_emulated = True
+        storage.endpoint_suffix = 'foo_suffix'
+        storage.account_name = 'foo_name'
+        storage.account_key = 'foo_key'
+        storage.sas_token = 'foo_token'
+        storage.azure_ssl = True
+        storage.custom_domain = 'foo_domain'
+        storage.custom_connection_string = 'foo_conn'
+        storage.token_credential = 'foo_cred'
+        with mock.patch(
+                'storages.backends.azure_storage.BlockBlobService',
+                autospec=True) as c_mocked:
+            self.assertIsNotNone(storage.custom_service)
+            c_mocked.assert_called_once_with(
+                account_name='foo_name',
+                account_key='foo_key',
+                sas_token='foo_token',
+                is_emulated=True,
+                protocol='https',
+                custom_domain='foo_domain',
+                connection_string='foo_conn',
+                token_credential='foo_cred',
+                endpoint_suffix='foo_suffix')
 
     # From boto3
 
@@ -157,17 +286,18 @@ class AzureStorageTest(TestCase):
         content = ContentFile('new content')
         with mock.patch('storages.backends.azure_storage.ContentSettings') as c_mocked:
             c_mocked.return_value = 'content_settings_foo'
-            self.assertEqual(self.storage.save(name, content), 'test_storage_save.txt')
+            self.assertEqual(self.storage.save(name, content), name)
             self.storage._service.create_blob_from_stream.assert_called_once_with(
                 container_name=self.container_name,
-                blob_name='test_storage_save.txt',
+                blob_name=name,
                 stream=content.file,
                 content_settings='content_settings_foo',
                 max_connections=2,
                 timeout=20)
             c_mocked.assert_called_once_with(
                 content_type='text/plain',
-                content_encoding=None)
+                content_encoding=None,
+                cache_control=None)
 
     def test_storage_open_write(self):
         """
@@ -220,13 +350,13 @@ class AzureStorageTest(TestCase):
         for directory in ["some", "other"]:
             self.assertTrue(
                 directory in dirs,
-                """ "%s" not in directory list "%s".""" % (directory, dirs))
+                """ "{}" not in directory list "{}".""".format(directory, dirs))
 
         self.assertEqual(len(files), 2)
         for filename in ["2.txt", "4.txt"]:
             self.assertTrue(
                 filename in files,
-                """ "%s" not in file list "%s".""" % (filename, files))
+                """ "{}" not in file list "{}".""".format(filename, files))
 
     def test_storage_listdir_subdir(self):
         file_names = ["some/path/1.txt", "some/2.txt"]
@@ -245,12 +375,12 @@ class AzureStorageTest(TestCase):
         self.assertEqual(len(dirs), 1)
         self.assertTrue(
             'path' in dirs,
-            """ "path" not in directory list "%s".""" % (dirs,))
+            """ "path" not in directory list "{}".""".format(dirs))
 
         self.assertEqual(len(files), 1)
         self.assertTrue(
             '2.txt' in files,
-            """ "2.txt" not in files list "%s".""" % (files,))
+            """ "2.txt" not in files list "{}".""".format(files))
 
     def test_size_of_file(self):
         props = BlobProperties()
@@ -265,3 +395,30 @@ class AzureStorageTest(TestCase):
         self.storage._service.get_blob_properties.return_value = Blob(props=props)
         time = self.storage.modified_time("name")
         self.assertEqual(accepted_time, time)
+
+    def test_override_settings(self):
+        with override_settings(AZURE_CONTAINER='foo1'):
+            storage = azure_storage.AzureStorage()
+            self.assertEqual(storage.azure_container, 'foo1')
+        with override_settings(AZURE_CONTAINER='foo2'):
+            storage = azure_storage.AzureStorage()
+            self.assertEqual(storage.azure_container, 'foo2')
+
+    def test_override_class_variable(self):
+        class MyStorage1(azure_storage.AzureStorage):
+            azure_container = 'foo1'
+
+        storage = MyStorage1()
+        self.assertEqual(storage.azure_container, 'foo1')
+
+        class MyStorage2(azure_storage.AzureStorage):
+            azure_container = 'foo2'
+
+        storage = MyStorage2()
+        self.assertEqual(storage.azure_container, 'foo2')
+
+    def test_override_init_argument(self):
+        storage = azure_storage.AzureStorage(azure_container='foo1')
+        self.assertEqual(storage.azure_container, 'foo1')
+        storage = azure_storage.AzureStorage(azure_container='foo2')
+        self.assertEqual(storage.azure_container, 'foo2')

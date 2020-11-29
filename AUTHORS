@@ -36,8 +36,16 @@ By order of apparition, thanks:
     * Alex Watt (Google Cloud Storage patch)
     * Jumpei Yoshimura (S3 docs)
     * Jon Dufresne
+    * Rodrigo Gadea (Dropbox fixes)
+    * Martey Dodoo
+    * Chris Rink
+    * Shaung Cheng (S3 docs)
+    * Andrew Perry (Bug fixes in SFTPStorage)
+    * Manuel Kaufmann (humitos)
+    * Taras Petriichuk (Dropbox write_mode option)
+    * Zoe Liao (S3 docs)
+    * Jonathan Ehwald
     * Marcelo Cueto (DigitalOceanSpacesStorage)
-
 
 
 Extra thanks to Marty for adding this in Django,

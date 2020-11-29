@@ -1,12 +1,288 @@
 django-storages CHANGELOG
 =========================
 
+1.10.1 (2020-09-13)
+*******************
+
+S3
+--
+
+- Restore ``AWS_DEFAULT_ACL`` handling. This setting is ignored if ``ACL`` is set in
+  ``AWS_S3_OBJECT_PARAMETERS`` (`#934`_)
+
+SFTP
+----
+
+- Fix using ``SFTP_STORAGE_HOST`` (`#926`_)
+
+.. _#926: https://github.com/jschneier/django-storages/pull/926
+.. _#934: https://github.com/jschneier/django-storages/pull/934
+
+1.10 (2020-08-30)
+*****************
+
+General
+-------
+
+- **Breaking**: Removed support for end-of-life Python 2.7 and 3.4 (`#709`_)
+- **Breaking**: Removed support for end-of-life Django 1.11 (`#891`_)
+- Add support for Django 3.1 (`#916`_)
+- Introduce a new ``BaseStorage`` class with a ``get_default_settings`` method and use
+  it in ``S3Boto3Storage``, ``AzureStorage``, ``GoogleCloudStorage``, and ``SFTPStorage``. These backends
+  now calculate their settings when instantiated, not imported. (`#524`_, `#852`_)
+
+S3
+--
+
+- **Breaking**: Automatic bucket creation has been removed. Doing so encourages using overly broad credentials.
+  As a result, support for the corresponding ``AWS_BUCKET_ACL`` and ``AWS_AUTO_CREATE_BUCKET`` settings have been removed. (`#636`_)
+- **Breaking**: Support for the undocumented setting ``AWS_PRELOAD_METADATA`` has been removed (`#636`_)
+- **Breaking**: The constructor kwarg ``acl`` is no longer accepted. Instead, use the ``ACL`` key in setting ``AWS_S3_OBJECT_PARAMETERS``
+  (`#636`_)
+- **Breaking**: The constructor kwarg ``bucket`` is no longer accepted. Instead, use ``bucket_name`` or the ``AWS_STORAGE_BUCKET_NAME``
+  setting (`#636`_)
+- **Breaking**: Support for setting ``AWS_REDUCED_REDUNDANCY`` has been removed. Replace with ``StorageClass=REDUCED_REDUNDANCY``
+  in ``AWS_S3_OBJECT_PARAMETERS`` (`#636`_)
+- **Breaking**: Support for setting ``AWS_S3_ENCRYPTION`` has been removed. Replace with ``ServerSideEncryption=AES256`` in ``AWS_S3_OBJECT_PARAMETERS`` (`#636`_)
+- **Breaking**: Support for setting ``AWS_DEFAULT_ACL`` has been removed. Replace with ``ACL`` in ``AWS_S3_OBJECT_PARAMETERS`` (`#636`_)
+- Add ``http_method`` parameter to ``.url`` method (`#854`_)
+- Add support for signing Cloudfront URLs to the ``.url`` method. You must set ``AWS_CLOUDFRONT_KEY``,
+  ``AWS_CLOUDFRONT_KEY_ID`` and install either `cryptography`_ or `rsa`_ (`#456`_, `#587`_). See the docs for more info.
+  URLs will only be signed if ``AWS_QUERYSTRING_AUTH`` is set to ``True`` (`#885`_)
+
+Google Cloud
+------------
+
+- **Breaking**: Automatic bucket creation has been removed. Doing so encourages using overly broad credentials.
+  As a result, support for the corresponding ``GS_AUTO_CREATE_BUCKET`` and ``GS_AUTO_CREATE_ACL`` settings have been removed. (`#894`_)
+
+Dropbox
+-------
+
+- Add ``DROPBOX_WRITE_MODE`` setting to control e.g. overwriting behavior. Check the docs
+  for more info (`#873`_, `#138`_)
+
+SFTP
+----
+
+- Remove exception swallowing during ssh connection (`#835`_, `#838`_)
+
+FTP
+---
+
+- Add ``FTP_STORAGE_ENCODING`` setting to set the filesystem encoding  (`#803`_)
+- Support multiple nested paths for files (`#886`_)
+
+.. _cryptography: https://cryptography.io
+.. _rsa: https://stuvel.eu/rsa
+.. _#885: https://github.com/jschneier/django-storages/pull/885
+.. _#894: https://github.com/jschneier/django-storages/pull/894
+.. _#636: https://github.com/jschneier/django-storages/pull/636
+.. _#709: https://github.com/jschneier/django-storages/pull/709
+.. _#891: https://github.com/jschneier/django-storages/pull/891
+.. _#916: https://github.com/jschneier/django-storages/pull/916
+.. _#852: https://github.com/jschneier/django-storages/pull/852
+.. _#873: https://github.com/jschneier/django-storages/pull/873
+.. _#854: https://github.com/jschneier/django-storages/pull/854
+.. _#138: https://github.com/jschneier/django-storages/issues/138
+.. _#524: https://github.com/jschneier/django-storages/pull/524
+.. _#835: https://github.com/jschneier/django-storages/issues/835
+.. _#838: https://github.com/jschneier/django-storages/pull/838
+.. _#803: https://github.com/jschneier/django-storages/pull/803
+.. _#456: https://github.com/jschneier/django-storages/issues/456
+.. _#587: https://github.com/jschneier/django-storages/pull/587
+.. _#886: https://github.com/jschneier/django-storages/pull/886
+
+1.9.1 (2020-02-03)
+******************
+
+S3
+--
+
+- Fix reading files with ``S3Boto3StorageFile`` (`#831`_, `#833`_)
+
+.. _#831: https://github.com/jschneier/django-storages/issues/831
+.. _#833: https://github.com/jschneier/django-storages/pull/833
+
+1.9 (2020-02-02)
+****************
+
+General
+-------
+
+- **Breaking**: The long deprecated S3 backend based on ``boto`` has been removed. (`#825`_)
+- Test against and support Python 3.8 (`#810`_)
+
+S3
+--
+
+- **Deprecated**: Automatic bucket creation will be removed in version 1.10 (`#826`_)
+- **Deprecated**: The undocumented ``AWS_PRELOAD_METADATA`` and associated functionality will
+  be removed in version 1.10 (`#829`_)
+- **Deprecated**: Support for ``AWS_REDUCED_REDUNDANCY`` will be removed in version 1.10
+  Replace with ``StorageClass=REDUCED_REDUNDANCY`` in ``AWS_S3_OBJECT_PARAMETERS`` (`#829`_)
+- **Deprecated**: Support for ``AWS_S3_ENCRYPTION`` will be removed in version 1.10 (`#829`_)
+  Replace with ``ServerSideEncryption=AES256`` in ``AWS_S3_OBJECT_PARAMETERS``
+- A custom ``ContentEncoding`` is no longer overwritten automatically (note that specifying
+  one will disable automatic ``gzip``) (`#391`_, `#828`_).
+- Add ``S3Boto3Storage.get_object_parameters``, an overridable method for customizing
+  upload parameters on a per-object basis (`#819`_, `#828`_)
+- Opening and closing a file in `w` mode without writing anything will now create an empty file
+  in S3, this mimics the builtin ``open`` and Django's own ``FileSystemStorage`` (`#435`_, `#816`_)
+- Fix reading a file in text mode (`#404`_, `#827`_)
+
+Google Cloud
+------------
+
+- **Deprecated**: Automatic bucket creation will be removed in version 1.10 (`#826`_)
+
+Dropbox
+-------
+
+- Fix crash on ``DropBoxStorage.listdir`` (`#762`_)
+- Settings can now additionally be specified at the class level to ease subclassing (`#745`_)
+
+Libcloud
+--------
+
+- Add support for Backblaze B2 to ``LibCloudStorage.url`` (`#807`_)
+
+FTP
+---
+
+- Fix creating multiple intermediary directories on Windows (`#823`_, `#824`_)
+
+.. _#825: https://github.com/jschneier/django-storages/pull/825
+.. _#826: https://github.com/jschneier/django-storages/pull/826
+.. _#829: https://github.com/jschneier/django-storages/pull/829
+.. _#391: https://github.com/jschneier/django-storages/issues/391
+.. _#828: https://github.com/jschneier/django-storages/pull/828
+.. _#819: https://github.com/jschneier/django-storages/issues/819
+.. _#810: https://github.com/jschneier/django-storages/pull/810
+.. _#435: https://github.com/jschneier/django-storages/issues/435
+.. _#816: https://github.com/jschneier/django-storages/pull/816
+.. _#404: https://github.com/jschneier/django-storages/issues/404
+.. _#827: https://github.com/jschneier/django-storages/pull/827
+.. _#762: https://github.com/jschneier/django-storages/pull/762
+.. _#745: https://github.com/jschneier/django-storages/pull/745
+.. _#807: https://github.com/jschneier/django-storages/pull/807
+.. _#823: https://github.com/jschneier/django-storages/issues/823
+.. _#824: https://github.com/jschneier/django-storages/pull/824
+
+
+1.8 (2019-11-20)
+****************
+
+General
+-------
+- Add support for Django 3.0 (`#759`_)
+- Update license identifier to unambiguous ``BSD-3-Clause``
+
+S3
+--
+
+- Include error message raised when missing library is imported (`#776`_, `#793`_)
+
+Google
+------
+
+- **Breaking** The minimum supported version of ``google-cloud-storage`` is now ``1.15.0`` which enables...
+- Add setting ``GS_CUSTOM_ENDPOINT`` to allow usage of custom domains (`#775`_, `#648`_)
+
+Azure
+-----
+
+- Fix extra installation by pinning version to < 12 (`#785`_)
+- Add support for setting ``AZURE_CACHE_CONTROL`` header (`#780`_, `#674`_)
+
+.. _#759: https://github.com/jschneier/django-storages/pull/759
+.. _#776: https://github.com/jschneier/django-storages/issues/776
+.. _#793: https://github.com/jschneier/django-storages/pull/793
+.. _#775: https://github.com/jschneier/django-storages/issues/775
+.. _#648: https://github.com/jschneier/django-storages/pull/648
+.. _#785: https://github.com/jschneier/django-storages/pull/785
+.. _#780: https://github.com/jschneier/django-storages/pull/780
+.. _#674: https://github.com/jschneier/django-storages/issues/674
+
+
+1.7.2 (2019-09-10)
+******************
+
+S3
+--
+
+- Avoid misleading ``AWS_DEFAULT_ACL`` warning for insecure ``default_acl`` when
+  overridden as a class variable (`#591`_)
+- Propagate file deletion to cache when ``preload_metadata`` is ``True``,
+  (not the default) (`#743`_, `#749`_)
+- Fix exception raised on closed file (common if using ``ManifestFilesMixin`` or
+  ``collectstatic``. (`#382`_, `#754`_)
+
+Azure
+-----
+
+- Pare down the required packages in ``extra_requires`` when installing the ``azure`` extra to only
+  ``azure-storage-blob`` (`#680`_, `#684`_)
+- Fix compatability with ``generate_blob_shared_access_signature`` updated signature (`#705`_, `#723`_)
+- Fetching a file now uses the configured timeout rather than hardcoding one (`#727`_)
+- Add support for configuring all blobservice options: ``AZURE_EMULATED_MODE``, ``AZURE_ENDPOINT_SUFFIX``,
+  ``AZURE_CUSTOM_DOMAIN``, ``AZURE_CONNECTION_STRING``, ``AZURE_CUSTOM_CONNECTION_STRING``,
+  ``AZURE_TOKEN_CREDENTIAL``. See the docs for more info. Huge thanks once again to @nitely. (`#750`_)
+- Fix filename handling to not strip special characters (`#609`_, `#752`_)
+
+
+Google Cloud
+------------
+
+- Set the file acl in the same call that uploads it (`#698`_)
+- Reduce the number of queries and required permissions when ``GS_AUTO_CREATE_BUCKET`` is
+  ``False`` (the default) (`#412`_, `#718`_)
+- Set the ``predefined_acl`` when creating a ``GoogleCloudFile`` using ``.write``
+  (`#640`_, `#756`_)
+- Add ``GS_BLOB_CHUNK_SIZE`` setting to enable efficient uploading of large files (`#757`_)
+
+Dropbox
+-------
+
+- Complete migration to v2 api with file fetching and metadata fixes (`#724`_)
+- Add ``DROPBOX_TIMEOUT`` to configure client timeout defaulting to 100 seconds
+  to match the underlying sdk. (`#419`_, `#747`_)
+
+SFTP
+----
+
+- Fix reopening a file (`#746`_)
+
+.. _#591: https://github.com/jschneier/django-storages/pull/591
+.. _#680: https://github.com/jschneier/django-storages/issues/680
+.. _#684: https://github.com/jschneier/django-storages/pull/684
+.. _#698: https://github.com/jschneier/django-storages/pull/698
+.. _#705: https://github.com/jschneier/django-storages/issues/705
+.. _#723: https://github.com/jschneier/django-storages/pull/723
+.. _#727: https://github.com/jschneier/django-storages/pull/727
+.. _#746: https://github.com/jschneier/django-storages/pull/746
+.. _#724: https://github.com/jschneier/django-storages/pull/724
+.. _#412: https://github.com/jschneier/django-storages/pull/412
+.. _#718: https://github.com/jschneier/django-storages/pull/718
+.. _#743: https://github.com/jschneier/django-storages/issues/743
+.. _#749: https://github.com/jschneier/django-storages/pull/749
+.. _#750: https://github.com/jschneier/django-storages/pull/750
+.. _#609: https://github.com/jschneier/django-storages/issues/609
+.. _#752: https://github.com/jschneier/django-storages/pull/752
+.. _#382: https://github.com/jschneier/django-storages/issues/382
+.. _#754: https://github.com/jschneier/django-storages/pull/754
+.. _#419: https://github.com/jschneier/django-storages/issues/419
+.. _#747: https://github.com/jschneier/django-storages/pull/747
+.. _#640: https://github.com/jschneier/django-storages/issues/640
+.. _#756: https://github.com/jschneier/django-storages/pull/756
+.. _#757: https://github.com/jschneier/django-storages/pull/757
+
 1.7.1 (2018-09-06)
 ******************
 
 - Fix off-by-1 error in ``get_available_name`` whenever ``file_overwrite`` or ``overwrite_files`` is ``True`` (`#588`_, `#589`_)
 - Change ``S3Boto3Storage.listdir()`` to use ``list_objects`` instead of ``list_objects_v2`` to restore
-  compatibility with services implementing the S3 protocol that do not yet support the new method (`#586`_, `#590`_)
+  compatability with services implementing the S3 protocol that do not yet support the new method (`#586`_, `#590`_)
 
 .. _#588: https://github.com/jschneier/django-storages/issues/588
 .. _#589: https://github.com/jschneier/django-storages/pull/589
@@ -22,8 +298,8 @@ django-storages CHANGELOG
   default ACL of ``public-read``. It is recommended that all current users audit their bucket
   permissions.  Support has been added for setting ``AWS_DEFAULT_ACL = None`` and ``AWS_BUCKET_ACL =
   None`` which causes all created files to inherit the bucket's ACL (and created buckets to inherit the
-  Amazon account's default ACL). This will become the default in version 2.0 (for ``S3Boto3Storage`` only
-  since ``S3BotoStorage`` will be removed in version 1.8, see below). Additionally, a warning is now
+  Amazon account's default ACL). This will become the default in version 1.10 (for ``S3Boto3Storage`` only
+  since ``S3BotoStorage`` will be removed in version 1.9, see below). Additionally, a warning is now
   raised if ``AWS_DEFAULT_ACL`` or ``AWS_BUCKET_ACL`` is not explicitly set. (`#381`_, `#535`_, `#579`_)
 
 **Breaking**
@@ -43,8 +319,8 @@ django-storages CHANGELOG
 **Deprecation**
 
 - The insecure default of ``public-read`` for ``AWS_DEFAULT_ACL`` and
-  ``AWS_BUCKET_ACL`` in ``S3Boto3Storage`` will change to inherit the bucket's setting in version 2.0 (`#579`_)
-- The legacy ``S3BotoBackend`` is deprecated and will be removed in version 1.8.
+  ``AWS_BUCKET_ACL`` in ``S3Boto3Storage`` will change to inherit the bucket's setting in version 1.10 (`#579`_)
+- The legacy ``S3BotoBackend`` is deprecated and will be removed in version 1.9.
   It is strongly recommended to move to the ``S3Boto3Storage`` backend for performance,
   stability and bugfix reasons. See the `boto migration docs`_ for step-by-step guidelines. (`#578`_, `#584`_)
 - The long aliased arguments to ``S3Boto3Storage`` of ``acl`` and ``bucket`` are
