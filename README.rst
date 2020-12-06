@@ -1,3 +1,8 @@
+Archived Fork
+=============
+This repo has been archived in favor of the simpler https://github.com/mcueto/django-storages-dospaces package.
+
+
 .. image:: https://raw.githubusercontent.com/jschneier/django-storages/master/docs/logos/horizontal.png
     :alt: Django-Storages
     :width: 100%
